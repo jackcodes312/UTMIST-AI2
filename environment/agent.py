@@ -958,7 +958,7 @@ class RecurrentPPOAgent(Agent):
     def learn(self, env, total_timesteps, log_interval: int = 2, verbose=0):
         self.model.set_env(env)
         self.model.verbose = verbose
-        self.model.learn(total_timesteps=total_timesteps, log_interval=log_interval)
+        self.model.learn(total_timesteps=total_timesteps, log_interval=log_interval, reset_num_timesteps=False)
 
 
 # ## Training Function

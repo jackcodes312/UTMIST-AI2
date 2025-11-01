@@ -405,9 +405,49 @@ def damage_interaction_reward(
 
     return reward / 140
 
+class StockDiff():
+    def __init__(self):
+        self.stock_diff = 0
+    
+    def change(self, 
+        env: WarehouseBrawl,
+        agent: str,
+    ) -> float:
+        if agent == 'player':
+            self.stock_diff -= 1
+        else:
+            self.stock_diff += 1
 
-# In[ ]:
+        return 0
 
+    def stock_advantage_reward(self, 
+        env: WarehouseBrawl,
+    ) -> float:
+
+        """
+        Computes the reward given for every time step your agent is edge guarding the opponent.
+
+        Args:
+            env (WarehouseBrawl): The game environment
+            success_value (float): Reward value related to having/gaining a weapon (however you define it)
+        Returns:
+            float: The computed reward.
+        """
+        dealt = damage_interaction_reward(env, RewardMode.ASYMMETRIC_OFFENSIVE)
+        taken = damage_interaction_reward(env, RewardMode.ASYMMETRIC_DEFENSIVE)
+
+        if self.stock_diff == 2:
+            reward = 1.8*dealt + 0.2*taken
+        elif self.stock_diff == 1:
+            reward = 1.3*dealt + 0.7*taken
+        elif not self.stock_diff:
+            reward = dealt + taken
+        elif self.stock_diff == -1:
+            reward = 0.7*dealt + 1.3*taken
+        else:
+            reward = 0.2*dealt + 1.8*taken
+
+        return reward
 
 def danger_zone_reward(
     env: WarehouseBrawl,
@@ -542,22 +582,24 @@ def on_combo_reward(env: WarehouseBrawl, agent: str) -> float:
 Add your dictionary of RewardFunctions here using RewTerms
 '''
 def gen_reward_manager():
+    stock_diff = StockDiff()
     reward_functions = {
-        #'target_height_reward': RewTerm(func=base_height_l2, weight=0.0, params={'target_height': -4, 'obj_name': 'player'}),
+        'target_height_reward': RewTerm(func=base_height_l2, weight=0.0, params={'target_height': -4, 'obj_name': 'player'}),
         'danger_zone_reward': RewTerm(func=danger_zone_reward, weight=0.5),
-        'damage_interaction_reward': RewTerm(func=damage_interaction_reward, weight=1.0),
-        #'head_to_middle_reward': RewTerm(func=head_to_middle_reward, weight=0.01),
-        #'head_to_opponent': RewTerm(func=head_to_opponent, weight=0.05),
+        'damage_interaction_reward': RewTerm(func=stock_diff.stock_advantage_reward, weight=1.0),
+        'head_to_middle_reward': RewTerm(func=head_to_middle_reward, weight=0.01),
+        'head_to_opponent': RewTerm(func=head_to_opponent, weight=0.05),
         'penalize_attack_reward': RewTerm(func=in_state_reward, weight=-0.04, params={'desired_state': AttackState}),
         'holding_more_than_3_keys': RewTerm(func=holding_more_than_3_keys, weight=-0.01),
-        #'taunt_reward': RewTerm(func=in_state_reward, weight=0.2, params={'desired_state': TauntState}),
+        'taunt_reward': RewTerm(func=in_state_reward, weight=0.2, params={'desired_state': TauntState}),
     }
     signal_subscriptions = {
         'on_win_reward': ('win_signal', RewTerm(func=on_win_reward, weight=50)),
         'on_knockout_reward': ('knockout_signal', RewTerm(func=on_knockout_reward, weight=8)),
         'on_combo_reward': ('hit_during_stun', RewTerm(func=on_combo_reward, weight=5)),
         'on_equip_reward': ('weapon_equip_signal', RewTerm(func=on_equip_reward, weight=10)),
-        'on_drop_reward': ('weapon_drop_signal', RewTerm(func=on_drop_reward, weight=15))
+        'on_drop_reward': ('weapon_drop_signal', RewTerm(func=on_drop_reward, weight=15)),
+        'stock_diff_change': ('knockout_signal', RewTerm(func=stock_diff.change, weight=0)),
     }
     return RewardManager(reward_functions, signal_subscriptions)
 
@@ -569,10 +611,10 @@ The main function runs training. You can change configurations such as the Agent
 '''
 if __name__ == '__main__':
     # Create agent
-    my_agent = CustomAgent(sb3_class=PPO, extractor=MLPExtractor)
+    #my_agent = CustomAgent(sb3_class=PPO, extractor=MLPExtractor)
 
     # Start here if you want to train from scratch. e.g:
-    #my_agent = RecurrentPPOAgent()
+    my_agent = RecurrentPPOAgent()
 
     # Start here if you want to train from a specific timestep. e.g:
     #my_agent = RecurrentPPOAgent(file_path='checkpoints/experiment_3/rl_model_120006_steps.zip')
@@ -591,15 +633,14 @@ if __name__ == '__main__':
         save_freq=100_000, # Save frequency
         max_saved=40, # Maximum number of saved models
         save_path='checkpoints', # Save path
-        run_name='experiment_9',
+        run_name='experiment_4',
         mode=SaveHandlerMode.FORCE # Save mode, FORCE or RESUME
-    )
+    ) 
 
     # Set opponent settings here:
     opponent_specification = {
-                    'self_play': (8, selfplay_handler),
-                    'constant_agent': (0.5, partial(ConstantAgent)),
-                    'based_agent': (1.5, partial(BasedAgent)),
+                    'self_play': (0, selfplay_handler),
+                    'based_agent': (1, partial(BasedAgent)),
                 }
     opponent_cfg = OpponentsCfg(opponents=opponent_specification)
 
